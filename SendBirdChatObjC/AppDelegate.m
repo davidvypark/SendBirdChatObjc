@@ -17,6 +17,20 @@
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
 	// Override point for customization after application launch.
+	[SBDMain initWithApplicationId:@"C8CD1613-99EF-4A58-9C93-488A1E7F9EF9"];
+	
+	[SBDMain setLogLevel:SBDLogLevelDebug];
+	
+	AVAudioSession *audioSession = [AVAudioSession sharedInstance];
+	if (audioSession != nil) {
+		NSError *error = nil;
+		[audioSession setCategory: AVAudioSessionCategoryPlayback error:&error];
+		
+		if (error != nil) {
+			NSLog(@"Set Audio Session error: %@", error);
+		}
+	}
+	
 	return YES;
 }
 

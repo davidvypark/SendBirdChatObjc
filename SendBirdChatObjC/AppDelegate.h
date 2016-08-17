@@ -7,6 +7,9 @@
 //
 
 #import <UIKit/UIKit.h>
+#import <SendBirdSDK/SendBirdSDK.h>
+#import <AVKit/AVKit.h>
+#import <AVFoundation/AVFoundation.h>
 
 @interface AppDelegate : UIResponder <UIApplicationDelegate>
 

@@ -7,11 +7,9 @@
 //
 
 #import <UIKit/UIKit.h>
-#import <JSQMessagesViewController/JSQMessagesViewController.h>
-#import <MobileCoreServices/UTCoreTypes.h>
+#import <SendBirdSDK/SendBirdSDK.h>
 
-#import "JSQMessages.h"
-#import "JSQSBMessage.h"
+#import "AgoraViewController.h"
 
 @interface ChatHomeViewController : UIViewController
 

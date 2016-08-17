@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		931DCCA3C8317DBCA67C510E /* libPods-SendBirdChatObjC.a in Frameworks */ = {isa = PBXBuildFile; fileRef = E28AC6A69751E26A61CE41E4 /* libPods-SendBirdChatObjC.a */; };
+		FF5C937A1D63F193009EB219 /* MemberListTableViewCell.xib in Resources */ = {isa = PBXBuildFile; fileRef = FF5C93791D63F193009EB219 /* MemberListTableViewCell.xib */; };
+		FF5C937D1D63F1D7009EB219 /* MemberListTableViewCell.m in Sources */ = {isa = PBXBuildFile; fileRef = FF5C937C1D63F1D7009EB219 /* MemberListTableViewCell.m */; };
 		FFA494291D639F3600AA1F38 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = FFA494281D639F3600AA1F38 /* main.m */; };
 		FFA4942C1D639F3600AA1F38 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = FFA4942B1D639F3600AA1F38 /* AppDelegate.m */; };
 		FFA494321D639F3600AA1F38 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = FFA494301D639F3600AA1F38 /* Main.storyboard */; };
@@ -24,6 +26,9 @@
 		90192E2C191AF2A7148C461B /* Pods-SendBirdChatObjC.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SendBirdChatObjC.release.xcconfig"; path = "Pods/Target Support Files/Pods-SendBirdChatObjC/Pods-SendBirdChatObjC.release.xcconfig"; sourceTree = "<group>"; };
 		BF3212A4430E7EBFD2E5112A /* Pods-SendBirdChatObjC.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SendBirdChatObjC.debug.xcconfig"; path = "Pods/Target Support Files/Pods-SendBirdChatObjC/Pods-SendBirdChatObjC.debug.xcconfig"; sourceTree = "<group>"; };
 		E28AC6A69751E26A61CE41E4 /* libPods-SendBirdChatObjC.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-SendBirdChatObjC.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		FF5C93791D63F193009EB219 /* MemberListTableViewCell.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; path = MemberListTableViewCell.xib; sourceTree = "<group>"; };
+		FF5C937B1D63F1D7009EB219 /* MemberListTableViewCell.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MemberListTableViewCell.h; sourceTree = "<group>"; };
+		FF5C937C1D63F1D7009EB219 /* MemberListTableViewCell.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MemberListTableViewCell.m; sourceTree = "<group>"; };
 		FFA494241D639F3600AA1F38 /* SendBirdChatObjC.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SendBirdChatObjC.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FFA494281D639F3600AA1F38 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		FFA4942A1D639F3600AA1F38 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
@@ -73,6 +78,16 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
+		FF5C937E1D63F1F1009EB219 /* MemberListTableViewCell */ = {
+			isa = PBXGroup;
+			children = (
+				FF5C937B1D63F1D7009EB219 /* MemberListTableViewCell.h */,
+				FF5C937C1D63F1D7009EB219 /* MemberListTableViewCell.m */,
+				FF5C93791D63F193009EB219 /* MemberListTableViewCell.xib */,
+			);
+			name = MemberListTableViewCell;
+			sourceTree = "<group>";
+		};
 		FFA4941B1D639F3600AA1F38 = {
 			isa = PBXGroup;
 			children = (
@@ -118,6 +133,7 @@
 		FFA494441D639FA900AA1F38 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				FF5C937E1D63F1F1009EB219 /* MemberListTableViewCell */,
 				FFA4943E1D639F7A00AA1F38 /* ChatHomeViewController.h */,
 				FFA4943F1D639F7A00AA1F38 /* ChatHomeViewController.m */,
 				FFA494451D639FBB00AA1F38 /* AgoraViewController.h */,
@@ -202,6 +218,7 @@
 				FFA494371D639F3600AA1F38 /* LaunchScreen.storyboard in Resources */,
 				FFA494341D639F3600AA1F38 /* Assets.xcassets in Resources */,
 				FFA494321D639F3600AA1F38 /* Main.storyboard in Resources */,
+				FF5C937A1D63F193009EB219 /* MemberListTableViewCell.xib in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -263,6 +280,7 @@
 				FFA4942C1D639F3600AA1F38 /* AppDelegate.m in Sources */,
 				FFA494431D639F9800AA1F38 /* JSQSBMessage.m in Sources */,
 				FFA494401D639F7A00AA1F38 /* ChatHomeViewController.m in Sources */,
+				FF5C937D1D63F1D7009EB219 /* MemberListTableViewCell.m in Sources */,
 				FFA494471D639FBB00AA1F38 /* AgoraViewController.m in Sources */,
 				FFA4944D1D639FD700AA1F38 /* DirectChatViewController.m in Sources */,
 				FFA4944A1D639FCB00AA1F38 /* ChatFriendsTableViewController.m in Sources */,

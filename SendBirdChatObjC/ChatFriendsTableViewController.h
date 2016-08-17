@@ -7,7 +7,10 @@
 //
 
 #import <UIKit/UIKit.h>
+#import <SendBirdSDK/SendBirdSDK.h>
 
-@interface ChatFriendsTableViewController : UITableViewController
+@interface ChatFriendsTableViewController : UIViewController<UITableViewDelegate, UITableViewDataSource>
+
+@property (strong, nonatomic, nullable) SBDGroupChannel *currentChannel;
 
 @end

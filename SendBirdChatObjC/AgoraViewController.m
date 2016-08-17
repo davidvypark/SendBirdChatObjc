@@ -68,6 +68,7 @@
 	[SBDMain addConnectionDelegate:self identifier:self.delegateIdentifier];
 	
 	[self startSendBird];
+	
 }
 
 -(void)viewWillAppear:(BOOL)animated {
@@ -92,7 +93,9 @@
 -(void)startSendBird {
 	if (self.channel != nil) {
 		self.previousMessageQuery = [self.channel createPreviousMessageListQuery];
-		[self.channel enterChannelWithCompletionHandler:^(SBDError * _Nullable error) {}];
+		[self.channel enterChannelWithCompletionHandler:^(SBDError * _Nullable error) {
+			[self loadMessages:LLONG_MAX initial:YES];
+		}];
 	}
 }
 
@@ -393,36 +396,495 @@
 	return 0.0f;
 }
 
+- (CGFloat)collectionView:(JSQMessagesCollectionView *)collectionView
+				   layout:(JSQMessagesCollectionViewFlowLayout *)collectionViewLayout heightForMessageBubbleTopLabelAtIndexPath:(NSIndexPath *)indexPath {
 
+	JSQSBMessage *currentMessage = [self.messages objectAtIndex:indexPath.item];
+	if ([[currentMessage senderId] isEqualToString:self.senderId]) {
+		return 0.0f;
+	}
+	
+	if (indexPath.item - 1 > 0) {
+		JSQSBMessage *previousMessage = [self.messages objectAtIndex:indexPath.item - 1];
+		if ([[previousMessage senderId] isEqualToString:[currentMessage senderId]]) {
+			return 0.0f;
+		}
+	}
+	
+	return kJSQMessagesCollectionViewCellLabelHeightDefault;
+}
 
+- (CGFloat)collectionView:(JSQMessagesCollectionView *)collectionView
+				   layout:(JSQMessagesCollectionViewFlowLayout *)collectionViewLayout heightForCellBottomLabelAtIndexPath:(NSIndexPath *)indexPath {
+	return 0.0f;
+}
 
+#pragma mark - Responding to collection view tap events
 
+- (void)collectionView:(JSQMessagesCollectionView *)collectionView
+				header:(JSQMessagesLoadEarlierHeaderView *)headerView didTapLoadEarlierMessagesButton:(UIButton *)sender {
+	NSLog(@"Load earlier messages!");
+}
 
+- (void)collectionView:(JSQMessagesCollectionView *)collectionView didTapAvatarImageView:(UIImageView *)avatarImageView atIndexPath:(NSIndexPath *)indexPath {
+	NSLog(@"Tapped avatar!");
+	
+	//GO TO USER PROFILE PAGE
+}
 
+#pragma mark - JSQMessagesComposerTextViewPasteDelegate methods
 
+- (BOOL)composerTextView:(JSQMessagesComposerTextView *)textView shouldPasteWithSender:(id)sender {
+	return YES;
+}
 
+- (void)didPressSendButton:(UIButton *)button
+		   withMessageText:(NSString *)text
+				  senderId:(NSString *)senderId
+		 senderDisplayName:(NSString *)senderDisplayName
+					  date:(NSDate *)date {
+	
+	
+	if ([text length] > 0) {
+		[self.channel sendUserMessage:text completionHandler:^(SBDUserMessage * _Nullable userMessage, SBDError * _Nullable error) {
+			if (error != nil) {
+				NSLog(@"Error: %@", error);
+			}
+			else {
+				if ([userMessage createdAt] > self.lastMessageTimestamp) {
+					self.lastMessageTimestamp = [userMessage createdAt];
+				}
+				
+				if ([userMessage createdAt] < self.firstMessageTimestamp) {
+					self.firstMessageTimestamp = [userMessage createdAt];
+				}
+				
+				JSQSBMessage *jsqsbmsg = nil;
+				
+				NSString *senderId = [[userMessage sender] userId];
+				NSString *senderImage = [[userMessage sender] profileUrl];
+				NSString *senderName = [[userMessage sender] nickname];
+				NSDate *msgDate = [NSDate dateWithTimeIntervalSince1970:[userMessage createdAt] / 1000];
+				NSString *messageText = [userMessage message];
+				
+				UIImage *placeholderImage = [JSQMessagesAvatarImageFactory circularAvatarPlaceholderImage:@"TC"
+																						  backgroundColor:[UIColor lightGrayColor]
+																								textColor:[UIColor darkGrayColor]
+																									 font:[UIFont systemFontOfSize:13.0f]
+																								 diameter:kJSQMessagesCollectionViewAvatarSizeDefault];
+				JSQMessagesAvatarImage *avatarImage = [JSQMessagesAvatarImageFactory avatarImageWithImageURL:senderImage
+																						 highlightedImageURL:senderImage
+																							placeholderImage:placeholderImage
+																									diameter:kJSQMessagesCollectionViewAvatarSizeDefault];
+				
+				[self.avatars setObject:avatarImage forKey:senderId];
+				if (senderName != nil) {
+					[self.users setObject:senderName forKey:senderId];
+				}
+				else {
+					[self.users setObject:@"UK" forKey:senderId];
+				}
+				
+				jsqsbmsg = [[JSQSBMessage alloc] initWithSenderId:senderId senderDisplayName:senderName date:msgDate text:messageText];
+				jsqsbmsg.message = userMessage;
+				
+				[self.messages addObject:jsqsbmsg];
+				
+				dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(500 * NSEC_PER_USEC)), dispatch_get_main_queue(), ^{
+					dispatch_async(dispatch_get_main_queue(), ^{
+						[self.collectionView reloadData];
+						[self scrollToBottomAnimated:NO];
+						
+						[[[self.inputToolbar contentView] textView] setText:@""];
+					});
+				});
+			}
+		}];
+	}
+}
 
+- (void)didPressAccessoryButton:(UIButton *)sender {
+	UIImagePickerController *mediaUI = [[UIImagePickerController alloc] init];
+	mediaUI.sourceType = UIImagePickerControllerSourceTypePhotoLibrary;
+	NSMutableArray *mediaTypes = [[NSMutableArray alloc] initWithObjects:(NSString *)kUTTypeImage, (NSString *)kUTTypeMovie, nil];
+	mediaUI.mediaTypes = mediaTypes;
+	[mediaUI setDelegate:self];
+	[self presentViewController:mediaUI animated:YES completion:nil];
+}
 
+#pragma mark - UIImagePickerControllerDelegate
 
+- (void)imagePickerController:(UIImagePickerController *)picker didFinishPickingMediaWithInfo:(NSDictionary *)info {
+	
+	__block NSString *mediaType = [info objectForKey: UIImagePickerControllerMediaType];
+	__block UIImage *originalImage, *editedImage, *imageToUse;
+	__block NSURL *imagePath;
+	__block NSString *imageName;
+	__block NSString *imageType;
+	
+	__weak AgoraViewController *weakSelf = self;
+	[picker dismissViewControllerAnimated:YES completion:^{
+		AgoraViewController *strongSelf = weakSelf;
+		if (CFStringCompare ((CFStringRef) mediaType, kUTTypeImage, 0) == kCFCompareEqualTo) {
+			editedImage = (UIImage *) [info objectForKey:
+									   UIImagePickerControllerEditedImage];
+			originalImage = (UIImage *) [info objectForKey:
+										 UIImagePickerControllerOriginalImage];
+			NSURL *refUrl = [info objectForKey:UIImagePickerControllerReferenceURL];
+			imageName = [refUrl lastPathComponent];
+			
+			if (originalImage) {
+				imageToUse = originalImage;
+			} else {
+				imageToUse = editedImage;
+			}
+			
+			imagePath = [info objectForKey:@"UIImagePickerControllerReferenceURL"];
+			imageName = [imagePath lastPathComponent];
+			
+			CGFloat newWidth = 0;
+			CGFloat newHeight = 0;
+			if (imageToUse.size.width > imageToUse.size.height) {
+				newWidth = 450;
+				newHeight = newWidth * imageToUse.size.height / imageToUse.size.width;
+			}
+			else {
+				newHeight = 450;
+				newWidth = newHeight * imageToUse.size.width / imageToUse.size.height;
+			}
+			
+			UIGraphicsBeginImageContextWithOptions(CGSizeMake(newWidth, newHeight), NO, 0.0);
+			[imageToUse drawInRect:CGRectMake(0, 0, newWidth, newHeight)];
+			UIImage *newImage = UIGraphicsGetImageFromCurrentImageContext();
+			UIGraphicsEndImageContext();
+			
+			
+			NSData *imageFileData = nil;
+			NSString *extentionOfFile = [imageName substringFromIndex:[imageName rangeOfString:@"."].location + 1];
+			
+			if ([extentionOfFile caseInsensitiveCompare:@"png"]) {
+				imageType = @"image/png";
+				imageFileData = UIImagePNGRepresentation(newImage);
+			}
+			else {
+				imageType = @"image/jpg";
+				imageFileData = UIImageJPEGRepresentation(newImage, 1.0);
+			}
+			
+			[strongSelf.channel sendFileMessageWithBinaryData:imageFileData filename:imageName type:imageType size:imageFileData.length data:@"" completionHandler:^(SBDFileMessage * _Nullable fileMessage, SBDError * _Nullable error) {
+				if (error != nil) {
+					return;
+				}
+				
+				if (fileMessage != nil) {
+					NSString *senderId = [[fileMessage sender] userId];
+					NSString *senderImage = [[fileMessage sender] profileUrl];
+					NSString *senderName = [[fileMessage sender] nickname];
+					NSDate *msgDate = [NSDate dateWithTimeIntervalSince1970:[fileMessage createdAt] / 1000];
+					NSString *url = [fileMessage url];
+					
+					NSString *initialName = @"";
+					if ([senderName length] > 1) {
+						initialName = [[senderName substringWithRange:NSMakeRange(0, 2)] uppercaseString];
+					}
+					else if ([senderName length] > 0) {
+						initialName = [[senderName substringWithRange:NSMakeRange(0, 1)] uppercaseString];
+					}
+					
+					UIImage *placeholderImage = [JSQMessagesAvatarImageFactory circularAvatarPlaceholderImage:initialName
+																							  backgroundColor:[UIColor lightGrayColor]
+																									textColor:[UIColor darkGrayColor]
+																										 font:[UIFont systemFontOfSize:13.0f]
+																									 diameter:kJSQMessagesCollectionViewAvatarSizeDefault];
+					JSQMessagesAvatarImage *avatarImage = [JSQMessagesAvatarImageFactory avatarImageWithImageURL:senderImage
+																							 highlightedImageURL:nil
+																								placeholderImage:placeholderImage
+																										diameter:kJSQMessagesCollectionViewAvatarSizeDefault];
+					
+					[self.avatars setObject:avatarImage forKey:senderId];
+					[self.users setObject:senderName forKey:senderId];
+					
+					JSQPhotoMediaItem *photoItem = [[JSQPhotoMediaItem alloc] initWithImageURL:url];
+					JSQSBMessage *jsqsbmsg = [[JSQSBMessage alloc] initWithSenderId:senderId senderDisplayName:senderName date:msgDate media:photoItem];
+					
+					[strongSelf.messages addObject:jsqsbmsg];
+					
+					dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(500 * NSEC_PER_USEC)), dispatch_get_main_queue(), ^{
+						dispatch_async(dispatch_get_main_queue(), ^{
+							[strongSelf.collectionView reloadData];
+							[strongSelf scrollToBottomAnimated:NO];
+						});
+					});
+				}
+			}];
+		}
+		else if (CFStringCompare ((CFStringRef) mediaType, kUTTypeMovie, 0) == kCFCompareEqualTo) {
+			NSURL *videoURL = [info objectForKey:UIImagePickerControllerMediaURL];
+			NSData *videoFileData = [NSData dataWithContentsOfURL:videoURL];
+			imageName = [videoURL lastPathComponent];
+			
+			NSString *extentionOfFile = [imageName substringFromIndex:[imageName rangeOfString:@"."].location + 1];
+			
+			if ([extentionOfFile caseInsensitiveCompare:@"mov"]) {
+				imageType = @"video/quicktime";
+			}
+			else if ([extentionOfFile caseInsensitiveCompare:@"mp4"]) {
+				imageType = @"video/mp4";
+			}
+			else {
+				imageType = @"video/mpeg";
+			}
+			
+			[strongSelf.channel sendFileMessageWithBinaryData:videoFileData filename:imageName type:imageType size:videoFileData.length data:@"" completionHandler:^(SBDFileMessage * _Nullable fileMessage, SBDError * _Nullable error) {
+				if (error != nil) {
+					return;
+				}
+				
+				if (fileMessage != nil) {
+					NSString *senderId = [[fileMessage sender] userId];
+					NSString *senderImage = [[fileMessage sender] profileUrl];
+					NSString *senderName = [[fileMessage sender] nickname];
+					NSDate *msgDate = [NSDate dateWithTimeIntervalSince1970:[fileMessage createdAt] / 1000];
+					NSString *url = [fileMessage url];
+					
+					NSString *initialName = @"";
+					if ([senderName length] > 1) {
+						initialName = [[senderName substringWithRange:NSMakeRange(0, 2)] uppercaseString];
+					}
+					else if ([senderName length] > 0) {
+						initialName = [[senderName substringWithRange:NSMakeRange(0, 1)] uppercaseString];
+					}
+					
+					UIImage *placeholderImage = [JSQMessagesAvatarImageFactory circularAvatarPlaceholderImage:initialName
+																							  backgroundColor:[UIColor lightGrayColor]
+																									textColor:[UIColor darkGrayColor]
+																										 font:[UIFont systemFontOfSize:13.0f]
+																									 diameter:kJSQMessagesCollectionViewAvatarSizeDefault];
+					JSQMessagesAvatarImage *avatarImage = [JSQMessagesAvatarImageFactory avatarImageWithImageURL:senderImage
+																							 highlightedImageURL:nil
+																								placeholderImage:placeholderImage
+																										diameter:kJSQMessagesCollectionViewAvatarSizeDefault];
+					
+					[self.avatars setObject:avatarImage forKey:senderId];
+					[self.users setObject:senderName forKey:senderId];
+					
+					JSQVideoMediaItem *videoItem = [[JSQVideoMediaItem alloc] initWithFileURL:[NSURL URLWithString:url] isReadyToPlay:YES];
+					JSQSBMessage *jsqsbmsg = [[JSQSBMessage alloc] initWithSenderId:senderId senderDisplayName:senderName date:msgDate media:videoItem];
+					
+					[strongSelf.messages addObject:jsqsbmsg];
+					
+					dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(500 * NSEC_PER_USEC)), dispatch_get_main_queue(), ^{
+						dispatch_async(dispatch_get_main_queue(), ^{
+							[strongSelf.collectionView reloadData];
+							[strongSelf scrollToBottomAnimated:NO];
+						});
+					});
+				}
+			}];
+		}
+	}];
+}
 
+- (void)imagePickerControllerDidCancel:(UIImagePickerController *)picker {
+	[picker dismissViewControllerAnimated:YES completion:^{ }];
+}
 
+#pragma mark - SBDConnectionDelegate
 
+- (void)didStartReconnection {
+	NSLog(@"didStartReconnection in AgoraViewController");
+	self.lastMessageTimestamp = LLONG_MIN;
+	self.firstMessageTimestamp = LLONG_MAX;
+	
+	[self.messages removeAllObjects];
+	[self.collectionView reloadData];
+}
 
+- (void)didSucceedReconnection {
+	NSLog(@"didSucceedReconnection delegate in AgoraViewController");
+	self.previousMessageQuery = [self.channel createPreviousMessageListQuery];
+	[self loadMessages:LLONG_MAX initial:YES];
+}
 
+- (void)didFailReconnection {
+	NSLog(@"didFailReconnection delegate in AgoraViewController");
+}
 
+#pragma mark - SBDBaseChannelDelegate
 
+- (void)channel:(SBDBaseChannel * _Nonnull)sender didReceiveMessage:(SBDBaseMessage * _Nonnull)message {
+	NSLog(@"channel:didReceiveMessage: delegate in OpenChatViewController");
+	
+	JSQSBMessage *jsqsbmsg = nil;
+	
+	if (![sender.channelUrl isEqualToString:self.channel.channelUrl]) {
+		return;
+	}
+	
+	if ([message isKindOfClass:[SBDUserMessage class]]) {
+		NSString *senderId = [[((SBDUserMessage *)message) sender] userId];
+		NSString *senderImage = [[((SBDUserMessage *)message) sender] profileUrl];
+		NSString *senderName = [[((SBDUserMessage *)message) sender] nickname];
+		NSDate *msgDate = [NSDate dateWithTimeIntervalSince1970:[message createdAt] / 1000];
+		NSString *messageText = [((SBDUserMessage *)message) message];
+		
+		NSString *initialName = @"";
+		if ([senderName length] > 1) {
+			initialName = [[senderName substringWithRange:NSMakeRange(0, 2)] uppercaseString];
+		}
+		else if ([senderName length] > 0) {
+			initialName = [[senderName substringWithRange:NSMakeRange(0, 1)] uppercaseString];
+		}
+		
+		UIImage *placeholderImage = [JSQMessagesAvatarImageFactory circularAvatarPlaceholderImage:initialName
+																				  backgroundColor:[UIColor lightGrayColor]
+																						textColor:[UIColor darkGrayColor]
+																							 font:[UIFont systemFontOfSize:13.0f]
+																						 diameter:kJSQMessagesCollectionViewAvatarSizeDefault];
+		JSQMessagesAvatarImage *avatarImage = [JSQMessagesAvatarImageFactory avatarImageWithImageURL:senderImage
+																				 highlightedImageURL:nil
+																					placeholderImage:placeholderImage
+																							diameter:kJSQMessagesCollectionViewAvatarSizeDefault];
+		
+		[self.avatars setObject:avatarImage forKey:senderId];
+		[self.users setObject:senderName forKey:senderId];
+		
+		jsqsbmsg = [[JSQSBMessage alloc] initWithSenderId:senderId senderDisplayName:senderName date:msgDate text:messageText];
+		jsqsbmsg.message = message;
+	}
+	else if ([message isKindOfClass:[SBDFileMessage class]]) {
+		NSString *senderId = [[((SBDFileMessage *)message) sender] userId];
+		NSString *senderImage = [[((SBDFileMessage *)message) sender] profileUrl];
+		NSString *senderName = [[((SBDFileMessage *)message) sender] nickname];
+		NSDate *msgDate = [NSDate dateWithTimeIntervalSince1970:[message createdAt] / 1000];
+		NSString *url = [((SBDFileMessage *)message) url];
+		
+		NSString *initialName = @"";
+		if ([senderName length] > 1) {
+			initialName = [[senderName substringWithRange:NSMakeRange(0, 2)] uppercaseString];
+		}
+		else if ([senderName length] > 0) {
+			initialName = [[senderName substringWithRange:NSMakeRange(0, 1)] uppercaseString];
+		}
+		
+		UIImage *placeholderImage = [JSQMessagesAvatarImageFactory circularAvatarPlaceholderImage:initialName
+																				  backgroundColor:[UIColor lightGrayColor]
+																						textColor:[UIColor darkGrayColor]
+																							 font:[UIFont systemFontOfSize:13.0f]
+																						 diameter:kJSQMessagesCollectionViewAvatarSizeDefault];
+		JSQMessagesAvatarImage *avatarImage = [JSQMessagesAvatarImageFactory avatarImageWithImageURL:senderImage
+																				 highlightedImageURL:nil
+																					placeholderImage:placeholderImage
+																							diameter:kJSQMessagesCollectionViewAvatarSizeDefault];
+		
+		[self.avatars setObject:avatarImage forKey:senderId];
+		[self.users setObject:senderName forKey:senderId];
+		
+		JSQPhotoMediaItem *photoItem = [[JSQPhotoMediaItem alloc] initWithImageURL:url];
+		jsqsbmsg = [[JSQSBMessage alloc] initWithSenderId:senderId senderDisplayName:senderName date:msgDate media:photoItem];
+	}
+	else if ([message isKindOfClass:[SBDAdminMessage class]]) {
+		NSDate *msgDate = [NSDate dateWithTimeIntervalSince1970:[message createdAt] / 1000];
+		NSString *messageText = [((SBDUserMessage *)message) message];
+		
+		jsqsbmsg = [[JSQSBMessage alloc] initWithSenderId:@"" senderDisplayName:@"" date:msgDate text:messageText];
+		jsqsbmsg.message = message;
+	}
+	
+	if ([message createdAt] > self.lastMessageTimestamp) {
+		self.lastMessageTimestamp = [message createdAt];
+	}
+	
+	if ([message createdAt] < self.firstMessageTimestamp) {
+		self.firstMessageTimestamp = [message createdAt];
+	}
+	
+	if (jsqsbmsg != nil) {
+		[self.messages addObject:jsqsbmsg];
+	}
+	
+	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(500 * NSEC_PER_USEC)), dispatch_get_main_queue(), ^{
+		dispatch_async(dispatch_get_main_queue(), ^{
+			[self.collectionView reloadData];
+			[self scrollToBottomAnimated:NO];
+		});
+	});
+}
 
+- (void)channelDidUpdateReadReceipt:(SBDGroupChannel * _Nonnull)sender {
+	NSLog(@"didReceiveChannelEvent:channelEvent: delegate in AgoraViewController");
+}
 
+- (void)channelDidUpdateTypingStatus:(SBDGroupChannel * _Nonnull)sender {
+	NSLog(@"channelDidUpdateTypingStatus: delegate in AgoraViewController");
+}
 
+- (void)channel:(SBDGroupChannel * _Nonnull)sender userDidJoin:(SBDUser * _Nonnull)user {
+	NSLog(@"channel:userDidJoin: delegate in AgoraViewController");
+}
 
+- (void)channel:(SBDGroupChannel * _Nonnull)sender userDidLeave:(SBDUser * _Nonnull)user {
+	NSLog(@"channel:userDidLeave: delegate in AgoraViewController");
+}
 
+- (void)channel:(SBDOpenChannel * _Nonnull)sender userDidEnter:(SBDUser * _Nonnull)user {
+	NSLog(@"channel:userDidEnter: delegate in AgoraViewController");
+}
 
+- (void)channel:(SBDOpenChannel * _Nonnull)sender userDidExit:(SBDUser * _Nonnull)user {
+	NSLog(@"channel:userDidExit: delegate in AgoraViewController");
+}
 
+- (void)channel:(SBDOpenChannel * _Nonnull)sender userWasMuted:(SBDUser * _Nonnull)user {
+	NSLog(@"channel:userWasMuted: delegate in AgoraViewController");
+}
 
+- (void)channel:(SBDOpenChannel * _Nonnull)sender userWasUnmuted:(SBDUser * _Nonnull)user {
+	NSLog(@"channel:userWasUnmuted: delegate in AgoraViewController");
+}
 
+- (void)channel:(SBDOpenChannel * _Nonnull)sender userWasBanned:(SBDUser * _Nonnull)user {
+	NSLog(@"channel:userWasBanned: delegate in AgoraViewController");
+}
 
+- (void)channel:(SBDOpenChannel * _Nonnull)sender userWasUnbanned:(SBDUser * _Nonnull)user {
+	NSLog(@"channel:userWasUnbanned: delegate in AgoraViewController");
+}
 
+- (void)channelWasFrozen:(SBDOpenChannel * _Nonnull)sender {
+	NSLog(@"channelWasFrozen: delegate in AgoraViewController");
+}
 
+- (void)channelWasUnfrozen:(SBDOpenChannel * _Nonnull)sender {
+	NSLog(@"channelWasUnfrozen: delegate in AgoraViewController");
+}
+
+- (void)channelWasChanged:(SBDBaseChannel * _Nonnull)sender {
+	NSLog(@"channelWasChanged: delegate in AgoraViewController");
+}
+
+- (void)channelWasDeleted:(NSString * _Nonnull)channelUrl channelType:(SBDChannelType)channelType {
+	NSLog(@"channelWasDeleted:channelType: delegate in AgoraViewController");
+}
+
+- (void)channel:(SBDBaseChannel * _Nonnull)sender messageWasDeleted:(long long)messageId {
+	NSLog(@"channel:messageWasDeleted: delegate in AgoraViewController");
+	
+	for (JSQSBMessage *msg in self.messages) {
+		if (msg.message.messageId == messageId) {
+			NSUInteger row = [self.messages indexOfObject:msg];
+			NSIndexPath *deletedMessageIndexPath = [NSIndexPath indexPathForRow:row inSection:0];
+			
+			[self.collectionView.dataSource collectionView:self.collectionView didDeleteMessageAtIndexPath:deletedMessageIndexPath];
+			dispatch_async(dispatch_get_main_queue(), ^{
+				[self.collectionView deleteItemsAtIndexPaths:@[deletedMessageIndexPath]];
+				[self.collectionView.collectionViewLayout invalidateLayout];
+			});
+			
+			break;
+		}
+	}
+}
 
 
 @end
